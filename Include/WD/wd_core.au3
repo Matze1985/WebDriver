@@ -24,6 +24,22 @@
 ; AutoIt Version : v3.3.14.3
 ; ==============================================================================
 #cs
+	V0.1.0.20
+	- Fixed: Escape string passed to _WD_ElementAction when setting element's value
+   - Fixed: Return value from _WD_Window should be "" on error
+   - Fixed: Current tab handling in _WDAttach
+
+	V0.1.0.19
+	- Added: _WD_ConsoleVisible
+	- Added: __WD_EscapeString
+	- Changed: Escape double quotes in string passed to _WD_FindElement, _WD_ExecuteScript
+	- Changed: _WD_Window with 'rect' command now returns Dictionary object instead of raw JSON string
+
+	V0.1.0.18
+	- Changed: Add optional parameters to _WD_NewTab for URL and Features
+	- Added: _WD_jQuerify
+	- Added: _WD_ElementOptionSelect
+
 	V0.1.0.17
 	- Changed: Add 'Screenshot' option to _WD_ElementAction
 	- Changed: Extract JSON value when taking screenshot in _WD_Window
@@ -170,7 +186,7 @@
 
 
 #Region Global Constants
-Global Const $__WDVERSION = "0.1.0.17"
+Global Const $__WDVERSION = "0.1.0.20"
 
 Global Const $_WD_ELEMENT_ID = "element-6066-11e4-a52e-4f735466cecf"
 
@@ -231,6 +247,7 @@ Global $_WD_PORT = 0 ; Port used for web driver communication
 Global $_WD_OHTTP = ObjCreate("winhttp.winhttprequest.5.1")
 Global $_WD_HTTPRESULT ; Result of last WinHTTP request
 Global $_WD_BFORMAT = $SB_UTF8 ; Binary format
+Global $_WD_ESCAPE_CHARS = '"' ; Characters to escape
 
 Global $_WD_ERROR_MSGBOX = True ; Shows in compiled scripts error messages in msgboxes
 Global $_WD_DEBUG = $_WD_DEBUG_Info ; Trace to console and show web driver app
@@ -537,7 +554,7 @@ EndFunc   ;==>_WD_Action
 ; ===============================================================================================================================
 Func _WD_Window($sSession, $sCommand, $sOption = '')
 	Local Const $sFuncName = "_WD_Window"
-	Local $sResponse, $sJSON, $sResult = "", $iErr
+	Local $sResponse, $oJSON, $sResult = "", $iErr
 
 	$sCommand = StringLower($sCommand)
 
@@ -546,39 +563,13 @@ Func _WD_Window($sSession, $sCommand, $sOption = '')
 			$sResponse = __WD_Get($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/" & $sCommand)
 			$iErr = @error
 
-			If $iErr = $_WD_ERROR_Success Then
-				If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
-					$sJSON = Json_Decode($sResponse)
-					$sResult = Json_Get($sJSON, "[value]")
-				Else
-					$iErr = $_WD_ERROR_Exception
-				EndIf
-			EndIf
-
 		Case 'handles'
 			$sResponse = __WD_Get($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/window/" & $sCommand)
 			$iErr = @error
 
-			If $iErr = $_WD_ERROR_Success Then
-				If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
-					$sJSON = Json_Decode($sResponse)
-					$sResult = Json_Get($sJSON, "[value]")
-				Else
-					$iErr = $_WD_ERROR_Exception
-				EndIf
-			EndIf
-
 		Case 'maximize', 'minimize', 'fullscreen'
 			$sResponse = __WD_Post($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/window/" & $sCommand, $sOption)
 			$iErr = @error
-
-			If $iErr = $_WD_ERROR_Success Then
-				If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
-					$sResult = $sResponse
-				Else
-					$iErr = $_WD_ERROR_Exception
-				EndIf
-			EndIf
 
 		Case 'rect'
 			If $sOption = '' Then
@@ -589,84 +580,59 @@ Func _WD_Window($sSession, $sCommand, $sOption = '')
 
 			$iErr = @error
 
-			If $iErr = $_WD_ERROR_Success Then
-				If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
-					$sResult = $sResponse
-				Else
-					$iErr = $_WD_ERROR_Exception
-				EndIf
-			EndIf
-
 		Case 'screenshot'
 			$sResponse = __WD_Get($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/" & $sCommand)
 			$iErr = @error
-
-			If $iErr = $_WD_ERROR_Success Then
-				If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
-					$sJSON = Json_Decode($sResponse)
-					$sResult = Json_Get($sJSON, "[value]")
-				Else
-					$iErr = $_WD_ERROR_Exception
-				EndIf
-			EndIf
 
 		Case 'close'
 			$sResponse = __WD_Delete($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/window")
 			$iErr = @error
 
-			If $iErr = $_WD_ERROR_Success Then
-				If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
-					$sResult = $sResponse
-				Else
-					$iErr = $_WD_ERROR_Exception
-				EndIf
-			EndIf
-
 		Case 'switch'
 			$sResponse = __WD_Post($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/window", $sOption)
 			$iErr = @error
 
-			If $iErr = $_WD_ERROR_Success Then
-				If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
-					$sResult = $sResponse
-				Else
-					$iErr = $_WD_ERROR_Exception
-				EndIf
-			EndIf
-
 		Case 'frame'
 			$sResponse = __WD_Post($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/frame", $sOption)
-
-			If $iErr = $_WD_ERROR_Success Then
-				If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
-					$sResult = $sResponse
-				Else
-					$iErr = $_WD_ERROR_Exception
-				EndIf
-			EndIf
+			$iErr = @error
 
 		Case 'parent'
 			$sResponse = __WD_Post($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/frame/parent", $sOption)
-
-			If $iErr = $_WD_ERROR_Success Then
-				If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
-					$sResult = $sResponse
-				Else
-					$iErr = $_WD_ERROR_Exception
-				EndIf
-			EndIf
+			$iErr = @error
 
 		Case Else
 			Return SetError(__WD_Error($sFuncName, $_WD_ERROR_InvalidDataType, "(Window|Handles|Maximize|Minimize|Fullscreen|Rect|Screenshot|Close|Switch|Frame|Parent) $sCommand=>" & $sCommand), 0, "")
 
 	EndSwitch
 
+	If $iErr = $_WD_ERROR_Success Then
+		If $_WD_HTTPRESULT = $HTTP_STATUS_OK Then
+
+			Switch $sCommand
+				Case 'maximize', 'minimize', 'fullscreen', 'close', 'switch', 'frame', 'parent'
+					$sResult = $sResponse
+
+				Case Else
+					$oJson = Json_Decode($sResponse)
+					$sResult = Json_Get($oJson, "[value]")
+			EndSwitch
+
+		ElseIf $_WD_HTTPRESULT = $HTTP_STATUS_NOT_FOUND Then
+			$oJson = Json_Decode($sResponse)
+			$sErr = Json_Get($oJson, "[value][error]")
+			$iErr = ($sErr == $WD_Element_Stale) ? $_WD_ERROR_NoMatch : $_WD_ERROR_Exception
+
+		Else
+			$iErr = $_WD_ERROR_Exception
+		EndIf
+	EndIf
+
 	If $_WD_DEBUG = $_WD_DEBUG_Info Then
 		ConsoleWrite($sFuncName & ': ' & StringLeft($sResponse, 100) & "..." & @CRLF)
 	EndIf
 
 	If $iErr Then
-		Return SetError(__WD_Error($sFuncName, $_WD_ERROR_Exception, "HTTP status = " & $_WD_HTTPRESULT), $_WD_HTTPRESULT, 0)
+		Return SetError(__WD_Error($sFuncName, $_WD_ERROR_Exception, "HTTP status = " & $_WD_HTTPRESULT), $_WD_HTTPRESULT, "")
 	EndIf
 
 	Return SetError($_WD_ERROR_Success, $_WD_HTTPRESULT, $sResult)
@@ -702,6 +668,7 @@ Func _WD_FindElement($sSession, $sStrategy, $sSelector, $sStartElement = "", $lM
 
 	$sCmd = ($lMultiple) ? 'elements' : 'element'
 	$sElement = ($sStartElement == "") ? "" : "/element/" & $sStartElement
+	$sSelector = __WD_EscapeString($sSelector)
 
 	$sResponse = __WD_Post($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & $sElement & "/" & $sCmd, '{"using":"' & $sStrategy & '","value":"' & $sSelector & '"}')
 	$iErr = @error
@@ -800,7 +767,7 @@ Func _WD_ElementAction($sSession, $sElement, $sCommand, $sOption = '')
 			$iErr = @error
 
 		Case 'value'
-			$sResponse = __WD_Post($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/element/" & $sElement & "/" & $sCommand, '{"id":"' & $sElement & '", "text":"' & $sOption & '"}')
+			$sResponse = __WD_Post($_WD_BASE_URL & ":" & $_WD_PORT & "/session/" & $sSession & "/element/" & $sElement & "/" & $sCommand, '{"id":"' & $sElement & '", "text":"' & __WD_EscapeString($sOption) & '"}')
 			$iErr = @error
 
 		Case Else
@@ -863,6 +830,8 @@ EndFunc   ;==>_WD_ElementAction
 Func _WD_ExecuteScript($sSession, $sScript, $sArguments = "[]", $lAsync = False)
 	Local Const $sFuncName = "_WD_ExecuteScript"
 	Local $sResponse, $sData, $sCmd
+
+	$sScript = __WD_EscapeString($sScript)
 
 	$sData = '{"script":"' & $sScript & '", "args":[' & $sArguments & ']}'
 	$sCmd = ($lAsync) ? 'async' : 'sync'
@@ -978,7 +947,7 @@ EndFunc   ;==>_WD_Alert
 ; Modified ......:
 ; Remarks .......:
 ; Related .......:
-; Link ..........: https://www.w3.org/TR/webdriver#getting-page-source
+; Link ..........: https://www.w3.org/TR/webdriver#get-page-source
 ; Example .......: No
 ; ===============================================================================================================================
 Func _WD_GetSource($sSession)
@@ -1006,7 +975,7 @@ Func _WD_GetSource($sSession)
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _WD_Cookies
-; Description ...:
+; Description ...: Gets, sets, or deletes the session's cookies
 ; Syntax ........: _WD_Cookies($sSession, $sCommand[, $sOption = ''])
 ; Parameters ....: $sSession            - Session ID from _WDCreateSession
 ;                  $sCommand            - one of the following actions:
@@ -1455,7 +1424,7 @@ EndFunc ;==>__WD_Error
 ; #INTERNAL_USE_ONLY# ===========================================================================================================
 ; Name ..........: __WD_CloseDriver
 ; Description ...: Shutdown web driver console if it exists
-; Syntax ........: __WDKillDriver()
+; Syntax ........: __WD_CloseDriver()
 ; Parameters ....:
 ; Return values .: None
 ; Author ........: Dan Pollak
@@ -1472,3 +1441,28 @@ Func __WD_CloseDriver()
 		ProcessClose($sFile)
 	EndIf
 EndFunc   ;==>__WD_CloseDriver
+
+; #INTERNAL_USE_ONLY# ===========================================================================================================
+; Name ..........: __WD_EscapeString
+; Description ...: Escapes designated characters in string
+; Syntax ........: __WD_EscapeString($sData)
+; Parameters ....: $sData               - the string to be escaped
+; Return Value ..: Success      - Escaped string
+;                  @ERROR       - $_WD_ERROR_Success
+; Return values .: None
+; Author ........: Dan Pollak
+; Modified ......:
+; Remarks .......:
+; Related .......:
+; Link ..........:
+; Example .......: No
+; ===============================================================================================================================
+Func __WD_EscapeString($sData)
+	Local $sEscaped = StringRegExpReplace($sData, "([" & $_WD_ESCAPE_CHARS & "])", "\\$1")
+	Return SetError($_WD_ERROR_Success, 0, $sEscaped)
+EndFunc
+
+Func __WD_TranslateQuotes($sData)
+	Local $sResult = StringReplace($sData, '"' , "'")
+	Return SetError($_WD_ERROR_Success, 0, $sResult)
+EndFunc

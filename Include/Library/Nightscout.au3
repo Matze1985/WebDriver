@@ -14,7 +14,7 @@
 ; Description ...: Login Nightscout
 ; Syntax ........: _SF_Login()
 ; Parameters.....: $sSession 	- Session ID from _WDCreateSession
-; Author ........: Mathias Noack
+; Author ........: Matze1985
 ; Modified ......:
 ; Remarks .......:
 ; Related .......:
@@ -23,11 +23,16 @@
 ; ===============================================================================================================================
 Func _NS_Login($sSession)
    Local Const $sFuncName = "_NS_Login"
-   _WD_BrowserAction($sFuncName, "https://matze1985.herokuapp.com/")
+   ; Accountdata
+   Local $sFileFullPath = @ScriptDir & "\Files\UserAccounts.ini"
+   Local $sUrl = IniRead($sFileFullPath, "Nightscout", "Url", "https://account.herokuapp.com")
+   Local $sApiSecretKey = IniRead($sFileFullPath, "Nightscout", "API-Secret-Key", "000000000000")
+
+   _WD_BrowserAction($sFuncName, $sUrl)
    _WD_LoadWait($sSession, 1000, 3000)
    _WD_WaitForElementAndAction($sFuncName, "", "//*[@id='lockedToggle']", "click", "", 1500, 1500)
-   _WD_WaitForElementAndAction($sFuncName, "", "//*[@id='lockedToggle']", "click", "", 1500, 1500) ; => Two steps, better for Chrome
-   _WD_WaitForElementAndAction($sFuncName, "", "//*[@id='apisecret']", "value", "000000000000", 500, 1500)
+   _WD_WaitForElementAndAction($sFuncName, "", "//*[@id='lockedToggle']", "double-click", "", 1500, 1500)
+   _WD_WaitForElementAndAction($sFuncName, "", "//*[@id='apisecret']", "value", $sApiSecretKey, 500, 1500)
    _WD_WaitForElementAndAction($sFuncName, "", "//*[@id='storeapisecret']", "click", "", 500, 1500)
    _WD_WaitForElementAndAction($sFuncName, "", "//*[@class='ui-button ui-corner-all ui-widget']", "click", "", 500, 1500)
 EndFunc
@@ -71,7 +76,7 @@ EndFunc
 Func _NS_Profile($sSession, $sTask)
    Local Const $sFuncName = "_NS_Profile"
    Local $i_sFrame = 0
-   Local $sElement, $sValue, $iIdNumber
+   Local $sElement, $iIdNumber
    Dim $sFileRead = ""
    Local $hFileOpen = FileOpen(@ScriptDir & "\Files\Nightscout.txt", $FO_READ)
 

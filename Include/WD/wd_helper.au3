@@ -150,50 +150,48 @@ EndFunc
 ; ===============================================================================================================================
 Func _WD_Attach($sSession, $sString, $sMode = 'title')
 	Local Const $sFuncName = "_WD_Attach"
-	Local $sTabHandle = '', $lFound = False, $sCurrentTab, $aHandles
+	Local $sTabHandle = '', $lFound = False, $sCurrentTab = '', $aHandles
 
-	$sCurrentTab = _WD_Window($sSession, 'window')
+	$aHandles = _WD_Window($sSession, 'handles')
 
-	If @error <> $_WD_ERROR_Success Then
-		Return SetError(__WD_Error($sFuncName, $_WD_ERROR_GeneralError), 0, $sTabHandle)
-	Else
-		$aHandles = _WD_Window($sSession, 'handles')
+	If @error = $_WD_ERROR_Success Then
+		$sMode = StringLower($sMode)
+		$sCurrentTab = _WD_Window($sSession, 'window')
 
-		If @error = $_WD_ERROR_Success Then
-			$sMode = StringLower($sMode)
+		For $sHandle In $aHandles
 
-			For $sHandle In $aHandles
+			_WD_Window($sSession, 'Switch', '{"handle":"' & $sHandle & '"}')
 
-				_WD_Window($sSession, 'Switch', '{"handle":"' & $sHandle & '"}')
+			Switch $sMode
+				Case "title", "url"
+					If StringInStr(_WD_Action($sSession, $sMode), $sString) > 0 Then
+						$lFound = True
+						$sTabHandle = $sHandle
+						ExitLoop
+					EndIf
 
-				Switch $sMode
-					Case "title", "url"
-						If StringInStr(_WD_Action($sSession, $sMode), $sString) > 0 Then
-							$lFound = True
-							$sTabHandle = $sHandle
-							ExitLoop
-						EndIf
+				Case 'html'
+					If StringInStr(_WD_GetSource($sSession), $sString) > 0 Then
+						$lFound = True
+						$sTabHandle = $sHandle
+						ExitLoop
+					EndIf
 
-					Case 'html'
-						If StringInStr(_WD_GetSource($sSession), $sString) > 0 Then
-							$lFound = True
-							$sTabHandle = $sHandle
-							ExitLoop
-						EndIf
+				Case Else
+					Return SetError(__WD_Error($sFuncName, $_WD_ERROR_InvalidDataType, "(Title|URL|HTML) $sOption=>" & $sMode), 0, $sTabHandle)
+			EndSwitch
+		Next
 
-					Case Else
-						Return SetError(__WD_Error($sFuncName, $_WD_ERROR_InvalidDataType, "(Title|URL|HTML) $sOption=>" & $sMode), 0, $sTabHandle)
-				EndSwitch
-			Next
-
-			If Not $lFound Then
-				; Restore prior active tab
+		If Not $lFound Then
+			; Restore prior active tab
+			If $sCurrentTab <> '' Then
 				_WD_Window($sSession, 'Switch', '{"handle":"' & $sCurrentTab & '"}')
-				Return SetError(__WD_Error($sFuncName, $_WD_ERROR_NoMatch), 0, $sTabHandle)
 			EndIf
-		Else
-			Return SetError(__WD_Error($sFuncName, $_WD_ERROR_GeneralError), 0, $sTabHandle)
+
+			Return SetError(__WD_Error($sFuncName, $_WD_ERROR_NoMatch), 0, $sTabHandle)
 		EndIf
+	Else
+		Return SetError(__WD_Error($sFuncName, $_WD_ERROR_GeneralError), 0, $sTabHandle)
 	EndIf
 
 	Return SetError($_WD_ERROR_Success, 0, $sTabHandle)
@@ -690,6 +688,121 @@ Func _WD_Screenshot($sSession, $sElement = '', $nOutputType = 1)
 
 	Return SetError(__WD_Error($sFuncName, $iErr), 0, $sResult)
 EndFunc
+
+; #FUNCTION# ====================================================================================================================
+; Name ..........: _WD_jQuerify
+; Description ...: Inject jQuery library into current session
+; Syntax ........: _WD_jQuerify($sSession)
+; Parameters ....: $sSession            - Session ID from _WDCreateSession
+; Return values .: None
+; Author ........: Dan Pollak
+; Modified ......:
+; Remarks .......:
+; Related .......:
+; Link ..........: https://sqa.stackexchange.com/questions/2921/webdriver-can-i-inject-a-jquery-script-for-a-page-that-isnt-using-jquery
+; Example .......: No
+; ===============================================================================================================================
+Func _WD_jQuerify($sSession)
+Local $jQueryLoader = _
+"(function(jqueryUrl, callback) {" & _
+"    if (typeof jqueryUrl != 'string') {" & _
+"        jqueryUrl = 'https://ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js';" & _
+"    }" & _
+"    if (typeof jQuery == 'undefined') {" & _
+"        var script = document.createElement('script');" & _
+"        var head = document.getElementsByTagName('head')[0];" & _
+"        var done = false;" & _
+"        script.onload = script.onreadystatechange = (function() {" & _
+"            if (!done && (!this.readyState || this.readyState == 'loaded' " & _
+"                    || this.readyState == 'complete')) {" & _
+"                done = true;" & _
+"                script.onload = script.onreadystatechange = null;" & _
+"                head.removeChild(script);" & _
+"                callback();" & _
+"            }" & _
+"        });" & _
+"        script.src = jqueryUrl;" & _
+"        head.appendChild(script);" & _
+"    }" & _
+"    else {" & _
+"        jQuery.noConflict();" & _
+"        callback();" & _
+"    }" & _
+"})(arguments[0], arguments[arguments.length - 1]);"
+
+_WD_ExecuteScript($sSession, $jQueryLoader, "[]", True)
+
+Do
+	Sleep(250)
+	_WD_ExecuteScript($sSession, "jQuery")
+Until @error = $_WD_ERROR_Success
+
+EndFunc
+
+; #FUNCTION# ====================================================================================================================
+; Name ..........: _WD_ElementOptionSelect
+; Description ...: Find and click on an option from a Select element
+; Syntax ........: _WD_ElementOptionSelect($sSession, $sStrategy, $sSelector[, $sStartElement = ""])
+; Parameters ....: $sSession            - Session ID from _WDCreateSession
+;                  $sStrategy           - Locator strategy. See defined constant $_WD_LOCATOR_* for allowed values
+;                  $sSelector           - Value to find
+;                  $sStartElement       - [optional] Element ID of element to use as starting point
+; Return values .: None
+;                  @ERROR       - $_WD_ERROR_Success
+;                  				- $_WD_ERROR_NoMatch
+;                  @EXTENDED    - WinHTTP status code
+; Author ........: Dan Pollak
+; Modified ......:
+; Remarks .......:
+; Related .......:
+; Link ..........:
+; Example .......: No
+; ===============================================================================================================================
+Func _WD_ElementOptionSelect($sSession, $sStrategy, $sSelector, $sStartElement = "")
+    Local $sElement = _WD_FindElement($sSession, $sStrategy, $sSelector, $sStartElement)
+
+    If @error = $_WD_ERROR_Success Then
+        _WD_ElementAction($sSession, $sElement, 'click')
+    EndIf
+EndFunc
+
+; #FUNCTION# ====================================================================================================================
+; Name ..........: _WD_ConsoleVisible
+; Description ...: Control visibility of the webdriver console app
+; Syntax ........: _WD_ConsoleVisible([$lVisible = False])
+; Parameters ....: $lVisible            - [optional] Set to true to hide the console
+; Return values .: None
+; Author ........: Dan Pollak
+; Modified ......:
+; Remarks .......:
+; Related .......:
+; Link ..........:
+; Example .......: No
+; ===============================================================================================================================
+Func _WD_ConsoleVisible($lVisible = False)
+	Local $sFile = StringRegExpReplace($_WD_DRIVER, "^.*\\(.*)$", "$1")
+	Local $pid, $pid2, $hWnd = 0
+
+	$pid = ProcessExists($sFile)
+
+	If $pid Then
+		$aWinList=WinList("[CLASS:ConsoleWindowClass]")
+
+		For $i=1 To $aWinList[0][0]
+			$pid2 = WinGetProcess($aWinList[$i][1])
+
+			If $pid2 = $pid Then
+				$hWnd=$aWinList[$i][1]
+				ExitLoop
+			EndIf
+		Next
+
+		If $hWnd<>0 Then
+			WinSetState($hWnd, "", $lVisible ? @SW_SHOW : @SW_HIDE)
+		EndIf
+	EndIf
+
+EndFunc   ;==>_WD_ConsoleVisible
 
 ; #FUNCTION# ====================================================================================================================
 ; Name ..........: _Base64Decode

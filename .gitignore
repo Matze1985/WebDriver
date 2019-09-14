@@ -1,0 +1,7 @@
+# Ignore content of folders
+TestCases/
+
+# Ignore files
+*.ini
+*.log
+*.db
