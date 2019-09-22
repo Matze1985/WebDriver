@@ -15,7 +15,7 @@
 #EndRegion Locals
 
 ; Path
-Local $sBrowserPath = "Browser\"
+Local $sBrowserPath = "..\..\Browser\"
 
 ; Capabilities for browsers
 Local $sDesiredCapabilitiesChrome = '{"capabilities": {"alwaysMatch": {"goog:chromeOptions": {"w3c": true, "args":["start-maximized", "disable-infobars"] }}}}'

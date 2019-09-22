@@ -20,3 +20,10 @@
 #include "Library\Nightscout.au3"
 
 ; Folder Other
+
+; AutoIt Include
+#include <Debug.au3>
+#include <FileConstants.au3>
+
+; Globals
+Global $_WD_DEBUG = False
